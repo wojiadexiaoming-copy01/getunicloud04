@@ -1,4 +1,4 @@
-name = "shrill-thunder-c6a7"
+name = "orange-paper-039a"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -24,4 +24,5 @@ name = "DMARC_EMAIL_PROCESSOR"
 
 # Worker limits
 [limits]
+
 cpu_ms = 30000  # 30 seconds CPU time limit
