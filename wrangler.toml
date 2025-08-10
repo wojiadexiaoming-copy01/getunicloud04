@@ -1,0 +1,27 @@
+name = "shrill-thunder-c6a7"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Email routing configuration
+[email]
+name = "DMARC_EMAIL_PROCESSOR"
+
+# Environment variables (if needed)
+[vars]
+# Add any environment variables here if needed
+
+# KV namespaces (if you need persistent storage)
+# [[kv_namespaces]]
+# binding = "DMARC_STORAGE"
+# id = "your-kv-namespace-id"
+# preview_id = "your-preview-kv-namespace-id"
+
+# R2 buckets (if you need file storage)
+# [[r2_buckets]]
+# binding = "DMARC_FILES"
+# bucket_name = "your-r2-bucket-name"
+
+# Worker limits
+[limits]
+cpu_ms = 30000  # 30 seconds CPU time limit

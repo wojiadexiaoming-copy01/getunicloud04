@@ -1,0 +1,36 @@
+{
+  "name": "dmarc-email-worker-enhanced",
+  "version": "1.0.0",
+  "description": "Enhanced DMARC Email Worker with UniCloud integration",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "wrangler dev --local"
+  },
+  "dependencies": {
+    "postal-mime": "^2.2.6",
+    "mime-db": "^1.52.0",
+    "unzipit": "^1.4.3",
+    "pako": "^2.1.0",
+    "fast-xml-parser": "^4.3.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "@types/mime-db": "^1.43.1",
+    "@types/pako": "^2.0.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.2"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "dmarc",
+    "email-processing",
+    "unicloud",
+    "postal-mime"
+  ],
+  "author": "DMARC Worker Enhanced",
+  "license": "MIT"
+}
