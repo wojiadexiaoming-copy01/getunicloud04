@@ -1,4 +1,4 @@
-import * as PostalMime from 'postal-mime'
+// 移除PostalMime，使用内置的邮件解析
 import * as mimeDb from 'mime-db'
 import * as unzipit from 'unzipit'
 import * as pako from 'pako'
@@ -41,21 +41,21 @@ export default {
     } catch (error) {
       console.error('❌ ===== Email Processing Failed =====')
       console.error('💥 Error details:', error)
-      
+
       // 记录详细的错误信息
       if (error instanceof Error) {
         console.error('📋 Error stack:', error.stack)
         console.error('📋 Error name:', error.name)
         console.error('📋 Error message:', error.message)
       }
-      
+
       // 记录消息上下文
       console.error('📧 Message context for debugging:')
       console.error('  - Message type:', typeof message)
       console.error('  - Message keys:', message ? Object.keys(message) : 'null')
       console.error('  - Has raw:', !!message?.raw)
       console.error('  - Raw type:', message?.raw ? typeof message.raw : 'N/A')
-      
+
       // 不要重新抛出错误，让Worker优雅地处理
       console.log('⚠️ Worker will continue running despite this error')
     }
@@ -65,8 +65,7 @@ export default {
 async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promise<void> {
   console.log('🔧 ===== Starting Email Processing =====')
 
-  const parser = new PostalMime.default()
-  console.log('📦 Initialized PostalMime parser')
+  console.log('📦 Using improved email parsing method')
 
   // 全局错误处理包装
   try {
@@ -76,20 +75,20 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
     console.log('  - Message type:', typeof message)
     console.log('  - Has raw property:', !!message.raw)
     console.log('  - Raw content type:', message.raw ? typeof message.raw : 'N/A')
-    
+
     if (!message.raw) {
       throw new Error('Message raw content is missing')
     }
-    
+
     const rawEmail = new Response(message.raw)
     console.log('📧 Response created from raw message')
-    
+
     const arrayBuffer = await rawEmail.arrayBuffer()
     console.log('📧 ArrayBuffer created, size:', arrayBuffer.byteLength, 'bytes')
-    
-    const email = await parser.parse(arrayBuffer) as Email
-    console.log('✅ Email parsed successfully with PostalMime')
-    
+
+    const email = await parseEmailImproved(arrayBuffer) as Email
+    console.log('✅ Email parsed successfully with improved method')
+
     // 安全地输出邮件详情，处理可能的编码问题
     console.log('📧 Email details:')
     try {
@@ -97,7 +96,7 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
       const safeSubject = sanitizeString(email.subject || 'No subject')
       const safeDate = email.date || 'No date'
       const attachmentCount = email.attachments?.length || 0
-      
+
       console.log(' - From:', safeFrom)
       console.log(' - Subject:', safeSubject)
       console.log(' - Date:', safeDate)
@@ -106,7 +105,7 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
       console.log(' - Has HTML:', !!email.html)
       console.log(' - Has Text:', !!email.text)
       console.log(' - Raw size:', arrayBuffer.byteLength, 'bytes')
-      
+
       // 显示内容长度和预览
       if (email.html) {
         console.log(' - HTML length:', email.html.length, 'characters')
@@ -130,13 +129,13 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
     if (!email || typeof email !== 'object') {
       throw new Error('Invalid email object structure')
     }
-    
+
     // 确保attachments属性存在
     if (!email.attachments) {
       console.log('ℹ️ Email attachments property is undefined, initializing as empty array')
       email.attachments = []
     }
-    
+
     // 确保attachments是数组
     if (!Array.isArray(email.attachments)) {
       console.log('ℹ️ Email attachments is not an array, converting to empty array')
@@ -152,20 +151,20 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
     if (email.attachments && email.attachments.length > 0) {
       console.log('📄 Found', email.attachments.length, 'attachment(s)')
       attachment = email.attachments[0]
-      
+
       try {
         const safeFilename = sanitizeString(attachment.filename || 'unnamed')
         const safeMimeType = attachment.mimeType || 'unknown'
-        const contentSize = typeof attachment.content === 'string' ? attachment.content.length : 
+        const contentSize = typeof attachment.content === 'string' ? attachment.content.length :
           (attachment.content instanceof ArrayBuffer ? attachment.content.byteLength : 0)
-        
+
         console.log('📄 Attachment details:')
         console.log('  - Filename:', safeFilename)
         console.log('  - MIME type:', safeMimeType)
         console.log('  - Size:', contentSize, 'bytes')
         console.log('  - Disposition:', attachment.disposition || 'unknown')
         console.log('  - Content type:', typeof attachment.content)
-        
+
         if (contentSize === 0 || contentSize === null || contentSize === undefined) {
           console.warn('⚠️ Warning: Attachment content size is invalid:', contentSize)
         }
@@ -179,12 +178,12 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
       try {
         const reportJSON = await getDMARCReportXML(attachment)
         console.log('✅ Successfully parsed as DMARC report')
-        
+
         try {
           const orgName = sanitizeString(reportJSON?.feedback?.report_metadata?.org_name || 'Unknown')
           const reportId = sanitizeString(reportJSON?.feedback?.report_metadata?.report_id || 'Unknown')
           const domain = sanitizeString(reportJSON?.feedback?.policy_published?.domain || 'Unknown')
-          
+
           console.log('📊 Report metadata:')
           console.log('  - Organization name:', orgName)
           console.log('  - Report ID:', reportId)
@@ -245,9 +244,9 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
       console.log('✅ Regular email processed successfully!')
       console.log('📧 No attachments, standard email processing completed')
     }
-    
+
     console.log('🎯 ===== Email Processing Completed Successfully =====')
-    
+
   } catch (error) {
     const err = error as Error
     console.error('❌ Email processing error:', error)
@@ -256,7 +255,7 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
       stack: err.stack,
       name: err.name
     })
-    
+
     // 添加更多上下文信息
     if (message) {
       console.error('📧 Message context:')
@@ -264,38 +263,325 @@ async function handleEmail(message: any, env: Env, ctx: ExecutionContext): Promi
       console.error('  - Has raw property:', !!message.raw)
       console.error('  - Raw content type:', message.raw ? typeof message.raw : 'N/A')
     }
-    
+
     // 记录详细的错误信息用于调试
     console.error('🔍 Detailed error analysis:')
     console.error('  - Error type:', err.constructor.name)
     console.error('  - Error message:', err.message)
     console.error('  - Error stack:', err.stack)
-    
+
     // 不要重新抛出错误，让Worker优雅地处理
     console.log('⚠️ Worker will continue running despite this error')
     console.log('📧 Email processing failed but Worker remains stable')
   }
 }
 
+// 改进的邮件解析函数
+async function parseEmailImproved(arrayBuffer: ArrayBuffer): Promise<Email> {
+  console.log('📧 ===== Improved Email Parsing =====')
+
+  const decoder = new TextDecoder('utf-8')
+  const emailText = decoder.decode(arrayBuffer)
+
+  console.log('📄 Email text length:', emailText.length, 'characters')
+
+  // 分离头部和正文
+  const headerBodySplit = emailText.split(/\r?\n\r?\n/)
+  const headerSection = headerBodySplit[0] || ''
+  const bodySection = headerBodySplit.slice(1).join('\n\n') || ''
+
+  console.log('📋 Header section length:', headerSection.length)
+  console.log('📄 Body section length:', bodySection.length)
+
+  // 解析邮件头部
+  const headers: Record<string, string> = {}
+  const headerLines = headerSection.split(/\r?\n/)
+  let currentHeader = ''
+
+  for (const line of headerLines) {
+    if (line.match(/^\s/)) {
+      // 继续上一个头部
+      if (currentHeader) {
+        headers[currentHeader] += ' ' + line.trim()
+      }
+    } else {
+      const match = line.match(/^([^:]+):\s*(.*)$/)
+      if (match) {
+        currentHeader = match[1].toLowerCase()
+        headers[currentHeader] = match[2]
+      }
+    }
+  }
+
+  console.log('📋 Parsed headers:', Object.keys(headers))
+
+  // 提取基本信息
+  const from = parseEmailAddress(headers.from || '')
+  const to = parseEmailAddresses(headers.to || '')
+  const subject = decodeMimeHeader(headers.subject || '')
+  const messageId = headers['message-id'] || ''
+  const date = headers.date || ''
+
+  console.log('📧 Basic info extracted:')
+  console.log('  - From:', from?.address || 'unknown')
+  console.log('  - To:', to?.map(addr => addr.address).join(', ') || 'unknown')
+  console.log('  - Subject (decoded):', subject)
+  console.log('  - Message ID:', messageId)
+  console.log('  - Date:', date)
+
+  // 检查是否是多部分邮件
+  const contentType = headers['content-type'] || ''
+  const isMultipart = contentType.includes('multipart')
+
+  console.log('📧 Email structure:')
+  console.log('  - Is multipart:', isMultipart)
+  console.log('  - Content-Type:', contentType)
+
+  let html = ''
+  let text = ''
+  let attachments: Attachment[] = []
+
+  if (isMultipart) {
+    console.log('📦 Processing multipart email...')
+    const boundaryMatch = contentType.match(/boundary=["']?([^"';,\s]+)["']?/)
+    if (boundaryMatch) {
+      const boundary = boundaryMatch[1]
+      console.log('🔍 Found boundary:', boundary)
+
+      // 更准确的边界分割
+      const parts = bodySection.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'))
+      console.log('📄 Found', Math.max(0, parts.length - 2), 'parts')
+
+      for (let i = 1; i < parts.length - 1; i++) {
+        const part = parts[i].trim()
+        if (!part) continue
+
+        console.log(`📄 Processing part ${i}...`)
+        const partResult = parsePartImproved(part)
+
+        console.log(`📄 Part ${i} result:`, {
+          type: partResult.type,
+          isAttachment: partResult.isAttachment,
+          contentLength: partResult.content ? partResult.content.length : 0
+        })
+
+        if (partResult.type === 'text/html' && !partResult.isAttachment) {
+          html = partResult.content
+          console.log('📄 Found HTML content:', html.length, 'characters')
+          if (html.length > 0) {
+            console.log('📄 HTML preview:', html.substring(0, 100).replace(/\s+/g, ' ') + '...')
+          }
+        } else if (partResult.type === 'text/plain' && !partResult.isAttachment) {
+          text = partResult.content
+          console.log('📄 Found text content:', text.length, 'characters')
+          if (text.length > 0) {
+            console.log('📄 Text preview:', text.substring(0, 100).replace(/\s+/g, ' ') + '...')
+          }
+        } else if (partResult.isAttachment) {
+          attachments.push(partResult as Attachment)
+          console.log('📎 Found attachment:', partResult.filename)
+        }
+      }
+    } else {
+      console.warn('⚠️ Multipart email but no boundary found')
+    }
+  } else {
+    console.log('📄 Processing single-part email...')
+    // 单部分邮件
+    if (contentType.includes('text/html')) {
+      html = bodySection
+      console.log('📄 Single-part HTML content:', html.length, 'characters')
+    } else {
+      text = bodySection
+      console.log('📄 Single-part text content:', text.length, 'characters')
+    }
+  }
+
+  console.log('✅ Email parsing completed')
+  console.log('📊 Final results:')
+  console.log('  - HTML length:', html.length)
+  console.log('  - Text length:', text.length)
+  console.log('  - Attachments:', attachments.length)
+
+  return {
+    headers: [],
+    from: from || { address: '', name: '' },
+    to: to || [],
+    subject,
+    messageId,
+    date,
+    html,
+    text,
+    attachments
+  }
+}
+
+// 改进的部分解析函数
+function parsePartImproved(part: string) {
+  const lines = part.split(/\r?\n/)
+  const headers: Record<string, string> = {}
+  let headerEnd = 0
+
+  // 解析部分头部
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (line === '') {
+      headerEnd = i + 1
+      break
+    }
+
+    const match = line.match(/^([^:]+):\s*(.*)$/)
+    if (match) {
+      headers[match[1].toLowerCase()] = match[2]
+    }
+  }
+
+  const contentType = headers['content-type'] || 'text/plain'
+  const contentDisposition = headers['content-disposition'] || ''
+  const contentTransferEncoding = headers['content-transfer-encoding'] || ''
+
+  console.log('📄 Part headers:', {
+    contentType: contentType.substring(0, 50),
+    contentDisposition: contentDisposition.substring(0, 50),
+    contentTransferEncoding
+  })
+
+  const isAttachment = contentDisposition.includes('attachment') ||
+    contentDisposition.includes('inline')
+
+  // 获取内容
+  const content = lines.slice(headerEnd).join('\n').trim()
+
+  let decodedContent = content
+
+  // 处理不同的编码
+  if (contentTransferEncoding.toLowerCase() === 'base64' && content) {
+    try {
+      // 清理base64内容
+      const cleanBase64 = content.replace(/\s/g, '')
+      if (cleanBase64) {
+        decodedContent = atob(cleanBase64)
+        console.log('✅ Base64 decoded successfully, length:', decodedContent.length)
+      }
+    } catch (e) {
+      console.warn('⚠️ Base64 decode failed:', e)
+      decodedContent = content
+    }
+  } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable' && content) {
+    try {
+      decodedContent = content
+        .replace(/=\r?\n/g, '')
+        .replace(/=([0-9A-F]{2})/gi, (match, hex) => {
+          return String.fromCharCode(parseInt(hex, 16))
+        })
+      console.log('✅ Quoted-printable decoded successfully, length:', decodedContent.length)
+    } catch (e) {
+      console.warn('⚠️ Quoted-printable decode failed:', e)
+      decodedContent = content
+    }
+  }
+
+  if (isAttachment) {
+    const filenameMatch = contentDisposition.match(/filename=["']?([^"';]+)["']?/)
+    const filename = filenameMatch ? filenameMatch[1] : 'unknown'
+
+    return {
+      isAttachment: true,
+      filename,
+      mimeType: contentType.split(';')[0].trim(),
+      content: decodedContent,
+      disposition: contentDisposition.includes('inline') ? 'inline' : 'attachment'
+    }
+  }
+
+  return {
+    type: contentType.split(';')[0].trim(),
+    content: decodedContent,
+    isAttachment: false
+  }
+}
+
+// 解析邮件地址
+function parseEmailAddress(addressString: string) {
+  if (!addressString) return null
+
+  const match = addressString.match(/([^<]+)?<([^>]+)>/) ||
+    addressString.match(/^([^\s]+@[^\s]+)$/)
+
+  if (match) {
+    return {
+      name: match[1] ? match[1].trim().replace(/^["']|["']$/g, '') : '',
+      address: match[2] || match[1]
+    }
+  }
+
+  return { name: '', address: addressString.trim() }
+}
+
+// 解析多个邮件地址
+function parseEmailAddresses(addressString: string) {
+  if (!addressString) return []
+
+  const addresses = addressString.split(',')
+  return addresses.map(addr => parseEmailAddress(addr.trim())).filter(addr => addr)
+}
+
+// 解码邮件主题（处理MIME编码）
+function decodeMimeHeader(headerValue: string): string {
+  if (!headerValue) return ''
+
+  try {
+    // 处理 =?charset?encoding?encoded-text?= 格式
+    const mimeRegex = /=\?([^?]+)\?([BQ])\?([^?]+)\?=/gi
+
+    return headerValue.replace(mimeRegex, (match, charset, encoding, encodedText) => {
+      try {
+        if (encoding.toUpperCase() === 'B') {
+          // Base64解码
+          const decoded = atob(encodedText)
+          // 简单的UTF-8解码
+          try {
+            return decodeURIComponent(escape(decoded))
+          } catch {
+            return decoded
+          }
+        } else if (encoding.toUpperCase() === 'Q') {
+          // Quoted-printable解码
+          return encodedText.replace(/_/g, ' ').replace(/=([0-9A-F]{2})/gi, (match, hex) => {
+            return String.fromCharCode(parseInt(hex, 16))
+          })
+        }
+      } catch (e) {
+        console.warn('⚠️ MIME decode error:', e)
+        return encodedText
+      }
+      return match
+    })
+  } catch (error) {
+    console.warn('⚠️ Header decode error:', error)
+    return headerValue
+  }
+}
+
 // 新增：安全字符串处理函数
 function sanitizeString(input: string): string {
   if (!input) return 'unknown'
-  
+
   try {
     // 尝试清理可能导致问题的字符
     let cleaned = input
       .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 移除控制字符
       .replace(/[\uFFFD]/g, '?') // 替换替换字符
       .trim()
-    
+
     // 如果清理后为空，返回默认值
     if (!cleaned) return 'unknown'
-    
+
     // 限制长度避免日志过长
     if (cleaned.length > 200) {
       cleaned = cleaned.substring(0, 200) + '...'
     }
-    
+
     return cleaned
   } catch (error) {
     console.warn('⚠️ String sanitization failed:', error)
@@ -355,7 +641,7 @@ async function getDMARCReportXML(attachment: Attachment) {
       extension: extension,
       mimeType: attachment.mimeType,
       contentType: typeof attachment.content,
-      contentSize: typeof attachment.content === 'string' ? attachment.content.length : 
+      contentSize: typeof attachment.content === 'string' ? attachment.content.length :
         (attachment.content instanceof ArrayBuffer ? attachment.content.byteLength : 'Unknown')
     })
     throw error
@@ -500,7 +786,7 @@ async function callUniCloudFunction(
   reportRows: DmarcRecordRow[]
 ): Promise<void> {
   console.log('☁️ ===== Calling UniCloud Function =====')
-  
+
   // 详细记录输入数据状态
   console.log('📊 Input data summary:')
   console.log('  - Email object:', !!email ? 'Valid' : 'Invalid')
@@ -520,9 +806,9 @@ async function callUniCloudFunction(
     console.log('    - Filename:', attachment.filename || 'undefined')
     console.log('    - MIME type:', attachment.mimeType || 'undefined')
     console.log('    - Content type:', typeof attachment.content)
-    console.log('    - Content size:', attachment.content ? 
-      (typeof attachment.content === 'string' ? attachment.content.length : 
-       attachment.content instanceof ArrayBuffer ? attachment.content.byteLength : 'unknown') : 'null')
+    console.log('    - Content size:', attachment.content ?
+      (typeof attachment.content === 'string' ? attachment.content.length :
+        attachment.content instanceof ArrayBuffer ? attachment.content.byteLength : 'unknown') : 'null')
   }
   console.log('  - DMARC records:', reportRows.length, 'records')
   console.log('  - Email type:', determineEmailType(attachment, reportRows))
@@ -549,7 +835,7 @@ async function callUniCloudFunction(
     // 准备发送给云函数的数据
     console.log('📦 Preparing payload...')
     const payload = preparePayload(email, attachment, reportRows)
-    
+
     // 验证payload的完整性
     console.log('🔍 Validating payload...')
     const payloadValidation = validatePayload(payload)
@@ -609,7 +895,7 @@ async function callUniCloudFunction(
       clearTimeout(timeoutId)
 
       console.log('📡 Response status:', response.status, response.statusText)
-      
+
       // 使用兼容的方式获取响应头
       const headers: Record<string, string> = {}
       response.headers.forEach((value, key) => {
@@ -647,14 +933,14 @@ async function callUniCloudFunction(
         const errorText = await response.text()
         console.error('❌ UniCloud function call failed!')
         console.error('📋 Error response:', errorText)
-        
+
         // 根据HTTP状态码提供更详细的错误信息
         const errorMessage = getDetailedErrorMessage(response.status, errorText)
         throw new Error(errorMessage)
       }
     } catch (fetchError: any) {
       clearTimeout(timeoutId)
-      
+
       if (fetchError.name === 'AbortError') {
         console.error('⏰ Request timeout after 30 seconds')
         throw new Error('Request timeout after 30 seconds')
@@ -673,7 +959,7 @@ async function callUniCloudFunction(
       hasAttachment: !!attachment,
       emailSubject: email.subject || 'No subject'
     })
-    
+
     // 根据错误类型决定是否重试
     if (shouldRetry(error)) {
       console.log('🔄 Retrying UniCloud function call...')
@@ -684,7 +970,7 @@ async function callUniCloudFunction(
         console.error('❌ Retry attempt failed:', retryError)
       }
     }
-    
+
     throw error
   }
 }
@@ -703,23 +989,23 @@ function determineEmailType(attachment: Attachment | null, reportRows: DmarcReco
 // 辅助函数：验证邮件数据
 function validateEmailData(email: any): { isValid: boolean; warnings: string[] } {
   const warnings: string[] = []
-  
+
   if (!email.from?.address) {
     warnings.push('Missing sender email address')
   }
-  
+
   if (!email.to || email.to.length === 0) {
     warnings.push('Missing recipient email addresses')
   }
-  
+
   if (!email.subject) {
     warnings.push('Missing email subject')
   }
-  
+
   if (!email.date) {
     warnings.push('Missing email date')
   }
-  
+
   return {
     isValid: warnings.length === 0,
     warnings
@@ -729,32 +1015,32 @@ function validateEmailData(email: any): { isValid: boolean; warnings: string[] }
 // 辅助函数：准备payload数据
 function preparePayload(email: any, attachment: Attachment | null, reportRows: DmarcRecordRow[]): any {
   console.log('📦 Starting payload preparation...')
-  
+
   // 安全地处理邮件内容，避免编码问题
   const safeSubject = sanitizeString(email.subject || 'No subject')
   const safeFrom = email.from?.address || 'unknown'
   const safeTo = Array.isArray(email.to) ? email.to.map((addr: Address) => addr?.address || 'unknown').filter((addr: string) => addr !== 'unknown') : ['unknown']
-  
+
   // 验证关键数据
   if (!safeFrom || safeFrom === 'unknown') {
     console.warn('⚠️ Warning: Sender email is missing or invalid')
   }
-  
+
   if (!safeTo || safeTo.length === 0 || safeTo.includes('unknown')) {
     console.warn('⚠️ Warning: Recipient emails are missing or invalid')
   }
-  
+
   if (!safeSubject || safeSubject === 'No subject') {
     console.warn('⚠️ Warning: Email subject is missing or invalid')
   }
-  
+
   // 处理附件信息
   let attachmentInfo = null
   if (attachment) {
     try {
-      const contentSize = typeof attachment.content === 'string' ? attachment.content.length : 
+      const contentSize = typeof attachment.content === 'string' ? attachment.content.length :
         (attachment.content instanceof ArrayBuffer ? attachment.content.byteLength : 0)
-      
+
       attachmentInfo = {
         filename: sanitizeString(attachment.filename || 'unnamed'),
         mimeType: attachment.mimeType || 'application/octet-stream',
@@ -762,7 +1048,7 @@ function preparePayload(email: any, attachment: Attachment | null, reportRows: D
         size: contentSize,
         disposition: attachment.disposition || 'attachment'
       }
-      
+
       console.log('📎 Attachment info prepared:', {
         filename: attachmentInfo.filename,
         mimeType: attachmentInfo.mimeType,
@@ -774,7 +1060,7 @@ function preparePayload(email: any, attachment: Attachment | null, reportRows: D
       attachmentInfo = null
     }
   }
-  
+
   const payload = {
     // 邮件基本信息
     emailInfo: {
@@ -787,7 +1073,7 @@ function preparePayload(email: any, attachment: Attachment | null, reportRows: D
       hasText: !!email.text
     },
 
-    // 邮件内容（PostalMime解析的完整内容）
+    // 邮件内容（改进方法解析的完整内容）
     emailContent: {
       html: email.html || null,
       text: email.text || null,
@@ -808,7 +1094,7 @@ function preparePayload(email: any, attachment: Attachment | null, reportRows: D
     workerInfo: {
       version: '1.0.0-enhanced',
       source: 'cloudflare-workers',
-      parser: 'postal-mime',
+      parser: 'improved-native',
       processingTimestamp: new Date().toISOString()
     },
 
@@ -822,7 +1108,7 @@ function preparePayload(email: any, attachment: Attachment | null, reportRows: D
       processingDuration: Date.now() - new Date().getTime()
     }
   }
-  
+
   console.log('📦 Payload prepared successfully')
   console.log('📊 Payload summary:')
   console.log('  - Email sender:', payload.emailInfo.from)
@@ -832,30 +1118,30 @@ function preparePayload(email: any, attachment: Attachment | null, reportRows: D
   console.log('  - Has HTML content:', payload.emailContent.htmlLength > 0)
   console.log('  - Has text content:', payload.emailContent.textLength > 0)
   console.log('  - DMARC records:', payload.dmarcRecords.length)
-  
+
   return payload
 }
 
 // 辅助函数：验证payload数据
 function validatePayload(payload: any): { isValid: boolean; warnings: string[] } {
   const warnings: string[] = []
-  
+
   if (!payload.emailInfo.from || payload.emailInfo.from === 'unknown') {
     warnings.push('Sender email address is missing or invalid')
   }
-  
+
   if (!payload.emailInfo.to || payload.emailInfo.to.length === 0 || payload.emailInfo.to.includes('unknown')) {
     warnings.push('Recipient email addresses are missing or invalid')
   }
-  
+
   if (!payload.emailInfo.subject || payload.emailInfo.subject === 'No subject') {
     warnings.push('Email subject is missing or invalid')
   }
-  
+
   if (payload.attachment && (!payload.attachment.filename || payload.attachment.size === 0)) {
     warnings.push('Attachment information is incomplete')
   }
-  
+
   return {
     isValid: warnings.length === 0,
     warnings
@@ -901,8 +1187,8 @@ function shouldRetry(error: any): boolean {
     '503',
     '504'
   ]
-  
-  return retryableErrors.some(retryableError => 
+
+  return retryableErrors.some(retryableError =>
     errorMessage.toLowerCase().includes(retryableError)
   )
 }
@@ -920,7 +1206,7 @@ async function retryUniCloudCall(
   console.log('  - Email subject:', email.subject || 'No subject')
   console.log('  - Has attachment:', !!attachment)
   console.log('  - DMARC records count:', reportRows.length)
-  
+
   // 重试时使用简化的payload，减少失败的可能性
   const simplifiedPayload = {
     emailInfo: {
@@ -941,7 +1227,7 @@ async function retryUniCloudCall(
     attachment: attachment ? {
       filename: attachment.filename || 'unnamed',
       mimeType: attachment.mimeType || 'application/octet-stream',
-      size: typeof attachment.content === 'string' ? attachment.content.length : 
+      size: typeof attachment.content === 'string' ? attachment.content.length :
         (attachment.content instanceof ArrayBuffer ? attachment.content.byteLength : 0)
     } : null,
     dmarcRecords: reportRows,
@@ -949,16 +1235,16 @@ async function retryUniCloudCall(
     workerInfo: {
       version: '1.0.0-enhanced',
       source: 'cloudflare-workers',
-      parser: 'postal-mime',
+      parser: 'improved-native',
       isRetry: true
     }
   }
-  
+
   console.log('📦 Simplified payload prepared for retry')
   console.log('📊 Retry payload summary:')
   console.log('  - Payload size:', JSON.stringify(simplifiedPayload).length, 'characters')
   console.log('  - Is retry attempt: true')
-  
+
   try {
     console.log('📡 Making retry request...')
     const response = await fetch(cloudFunctionUrl, {
@@ -971,16 +1257,16 @@ async function retryUniCloudCall(
       },
       body: JSON.stringify(simplifiedPayload)
     })
-    
+
     console.log('📡 Retry response status:', response.status, response.statusText)
-    
+
     if (!response.ok) {
       const errorText = await response.text()
       console.error('❌ Retry failed with status:', response.status)
       console.error('📋 Retry error response:', errorText)
       throw new Error(`Retry failed: ${response.status} ${response.statusText} - ${errorText}`)
     }
-    
+
     console.log('✅ Retry attempt successful!')
     const result = await response.json()
     console.log('📄 Retry response data:', JSON.stringify(result, null, 2))
